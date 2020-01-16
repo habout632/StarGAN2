@@ -1,7 +1,8 @@
 <p align="center"><img width="40%" src="jpg/logo.jpg" /></p>
 
 --------------------------------------------------------------------------------
-This repository provides a PyTorch implementation of [StarGAN](https://arxiv.org/abs/1711.09020). StarGAN can flexibly translate an input image to any desired target domain using only a single generator and a discriminator. The demo video for StarGAN can be found [here](https://www.youtube.com/watch?v=EYjdLppmERE).
+This repository is forked from Official StarGAN v1.0 and add new features to the model according to paper StarGAN v2
+provides a PyTorch implementation of [StarGAN](https://arxiv.org/abs/1711.09020). StarGAN can flexibly translate an input image to any desired target domain using only a single generator and a discriminator. The demo video for StarGAN can be found [here](https://www.youtube.com/watch?v=EYjdLppmERE).
 
 <p align="center"><img width="100%" src="jpg/main.jpg" /></p>
 
