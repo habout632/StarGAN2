@@ -33,19 +33,21 @@ class PreActBlock(nn.Module):
     """
     Pre-activation version of the BasicBlock.
     https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
     """
     expansion = 1
 
-    def __init__(self, dim_in, dim_out, stride=1):
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActBlock, self).__init__()
         self.bn1 = nn.BatchNorm2d(dim_in)
-        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         self.bn2 = nn.BatchNorm2d(dim_out)
-        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if stride != 1 or dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x):
@@ -63,18 +65,18 @@ class PreActBottleneck(nn.Module):
     """
     expansion = 4
 
-    def __init__(self, dim_in, dim_out, stride=1):
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActBottleneck, self).__init__()
         self.bn1 = nn.BatchNorm2d(dim_in)
-        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=1, bias=False)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=1, bias=bias)
         self.bn2 = nn.BatchNorm2d(dim_out)
-        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         self.bn3 = nn.BatchNorm2d(dim_out)
-        self.conv3 = nn.Conv2d(dim_out, self.expansion * dim_out, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv2d(dim_out, self.expansion * dim_out, kernel_size=1, bias=bias)
 
         if stride != 1 or dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x):
@@ -611,15 +613,32 @@ class Mapping(nn.Module):
 
 def init_weights(m):
     """
-    init weights with he init and bias with 0
+    init weights with Kaiming He init and bias with 0
+    https://gist.github.com/jeasinema/ed9236ce743c8efaf30fa2ff732749f5
     :param m:
     :return:
     """
-    print(m)
+    # print(m)
     if isinstance(m, nn.Module) and not isinstance(m, AdaptiveInstanceNorm):
-        nn.init.kaiming_normal_(m.weight)
-        m.bias.data.fill_(0)
-        print(m.weight)
-        print(m.bias)
-
-
+        if not isinstance(m, nn.BatchNorm2d) and not isinstance(m, nn.AvgPool2d) and not isinstance(m, nn.InstanceNorm2d)\
+                and not isinstance(m, nn.ReLU) and not isinstance(m, nn.LeakyReLU):
+            # nn.init.kaiming_normal_(m.weight)
+            modules = [f for f in m.children()]
+            if modules:
+                for s in modules:
+                    # nn.init.kaiming_uniform_(s.weight)
+                    # s.bias.data.zero_()
+                    init_weights(s)
+            else:
+                try:
+                    nn.init.kaiming_uniform_(m.weight)
+                    m.bias.data.zero_()
+                except Exception as e:
+                    print(str(e))
+            # print(m.weight)
+            # print(m.bias)
+    # if isinstance(m, AdaptiveInstanceNorm) or isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.AvgPool2d) or isinstance(m, nn.InstanceNorm2d):
+    #     pass
+    # else:
+    #     nn.init.kaiming_uniform_(m.weight)
+    #     m.bias.data.zero_()
