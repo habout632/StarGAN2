@@ -31,7 +31,6 @@ class Solver(object):
         # Model configurations.
         self.c_dim = config.c_dim
         self.c2_dim = config.c2_dim
-        self.num_domains = 2
         self.image_size = config.image_size
         self.g_conv_dim = config.g_conv_dim
         self.d_conv_dim = config.d_conv_dim
@@ -278,21 +277,13 @@ class Solver(object):
 
         # s_hat: estimated style code of source image
         # loss style reconstruction:style reconstruction
-        s_hat_sty = self.E(self.G(x_real, g_s_tilde_trg), num_domains=self.num_domains)
-        # s_hat_trg = torch.index_select(torch.stack(s_hat_sty, 1), 1, label_trg.squeeze().long())[:, 0, :]
-        s_hat_trg = torch.squeeze(torch.stack([torch.index_select(x, 0, i) for x, i in
-                                                 zip(torch.chunk(torch.stack(s_hat_sty, 1), chunks=self.num_domains, dim=1),
-                                                     label_trg.squeeze().long())]))
-
+        s_hat_sty = self.E(self.G(x_real, g_s_tilde_trg), num_domains=2)
+        s_hat_trg = torch.index_select(torch.stack(s_hat_sty, 1), 1, label_trg.squeeze().long())[:, 0, :]
         g_loss_sty = self.l1_loss(g_s_tilde_trg, s_hat_trg)
 
         # loss cycle: preserving source characteristics
-        s_hat_cyc = self.E(x_real, num_domains=self.num_domains)
-        # s_hat_org = torch.index_select(torch.stack(s_hat_cyc, 1), 1, label_org.squeeze().long())[:, 0, :]
-        s_hat_org = torch.squeeze(torch.stack([torch.index_select(x, 0, i) for x, i in
-                                                 zip(torch.chunk(torch.stack(s_hat_cyc, 1), chunks=self.num_domains, dim=1),
-                                                     label_org.squeeze().long())]))
-
+        s_hat_cyc = self.E(x_real, num_domains=2)
+        s_hat_org = torch.index_select(torch.stack(s_hat_cyc, 1), 1, label_org.squeeze().long())[:, 0, :]
         x_fake_cyc = self.G(self.G(x_real, g_s_tilde_trg), s_hat_org)
         g_loss_cyc = self.l1_loss(x_real, x_fake_cyc)
 
@@ -433,18 +424,17 @@ class Solver(object):
             c_trg_list.append(c_trg.to(self.device))
         return c_trg_list
 
-    def generate_style_code(self, label_trg, num_domains=2):
+    def generate_style_code(self, label_trg):
         """
 
         :param label_trg:
         :return:
         """
         z = self.noise(size=self.batch_size, dimension=16, device=self.device)
-        s_tilde = self.F(z, num_domains=num_domains)
+        s_tilde = self.F(z, num_domains=2)
 
         # Compute loss with fake images.
-        # s_tilde_trg = torch.index_select(torch.stack(s_tilde, 1), 1, label_trg.squeeze().long())[:, 0, :]
-        s_tilde_trg = torch.squeeze(torch.stack([torch.index_select(x, 0, i) for x, i in zip(torch.chunk(torch.stack(s_tilde, 1), chunks=num_domains, dim=1), label_trg.squeeze().long())]))
+        s_tilde_trg = torch.index_select(torch.stack(s_tilde, 1), 1, label_trg.squeeze().long())[:, 0, :]
         return s_tilde_trg
 
     def classification_loss(self, logit, target, dataset='CelebA'):
@@ -528,20 +518,20 @@ class Solver(object):
 
             # d_loss_real = self.bce_loss(self.zeros_target(self.batch_size), d_out_real)
             # d_loss_cls = self.classification_loss(out_cls, label_org, self.dataset)
-            #
-            # # z:latent code s_tilde:target style code
-            # z = self.noise(size=self.batch_size, dimension=16, device=self.device)
-            # s_tilde = self.F(z, num_domains=2)
-            #
-            # # target style code s_tilde
-            #
-            # # Compute loss with fake images.
-            # # s_tilde_tensor = torch.stack(s_tilde, 1)
-            # s_tilde_trg = torch.index_select(torch.stack(s_tilde, 1), 1, label_trg.squeeze().long())[:, 0, :]
-            # # s_tilde_trg = torch.gather(s_tilde_tensor, 1, label_trg.expand(s_tilde_tensor.size()).long())
-            # # s_tilde_trg = torch.gather(torch.stack(s_tilde, 1), 1, torch.unsqueeze(label_trg, 2).long())
-            #
-            # d_x_fake = self.G(x_real, s_tilde_trg)
+
+            # z:latent code s_tilde:target style code
+            z = self.noise(size=self.batch_size, dimension=16, device=self.device)
+            s_tilde = self.F(z, num_domains=2)
+
+            # target style code s_tilde
+
+            # Compute loss with fake images.
+            # s_tilde_tensor = torch.stack(s_tilde, 1)
+            s_tilde_trg = torch.index_select(torch.stack(s_tilde, 1), 1, label_trg.squeeze().long())[:, 0, :]
+            # s_tilde_trg = torch.gather(s_tilde_tensor, 1, label_trg.expand(s_tilde_tensor.size()).long())
+            # s_tilde_trg = torch.gather(torch.stack(s_tilde, 1), 1, torch.unsqueeze(label_trg, 2).long())
+
+            d_x_fake = self.G(x_real, s_tilde_trg)
             # out_fake = self.D(d_x_fake.detach())
             # d_out_fake = torch.gather(out_fake, 1, label_trg.long())
             # # d_loss_fake = torch.mean(out_fake)
@@ -559,8 +549,6 @@ class Solver(object):
             # # R1 regularization
             # l1_norm = torch.norm(self.D.weight, p=1)
             # d_loss += l1_norm
-
-            s_tilde_trg = self.generate_style_code(label_trg)
 
             # d_loss, d_loss_real, d_loss_fake = self.compute_adversarial_loss(True, x_real, label_org, d_x_fake, label_trg)
             d_loss, d_loss_real, d_loss_fake = self.train_discriminator(x_real, label_org, s_tilde_trg, label_trg)

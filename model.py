@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 import torch.nn.functional as F
 from math import sqrt
 
@@ -59,34 +60,188 @@ class PreActBlock(nn.Module):
         return out
 
 
-class PreActBottleneck(nn.Module):
+class PreActDBlock(nn.Module):
     """
-    Pre-activation version of the original Bottleneck module.
+    Pre-activation version of the BasicBlock.
+    https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
     """
-    expansion = 4
+    expansion = 1
 
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
-        super(PreActBottleneck, self).__init__()
-        self.bn1 = nn.BatchNorm2d(dim_in)
-        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=1, bias=bias)
-        self.bn2 = nn.BatchNorm2d(dim_out)
-        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.bn3 = nn.BatchNorm2d(dim_out)
-        self.conv3 = nn.Conv2d(dim_out, self.expansion * dim_out, kernel_size=1, bias=bias)
+        super(PreActDBlock, self).__init__()
+        # self.bn1 = nn.BatchNorm2d(dim_in)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+        # self.bn2 = nn.BatchNorm2d(dim_out)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
-        if stride != 1 or dim_in != self.expansion * dim_out:
+        if dim_in != self.expansion * dim_out:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
+            )
+
+    def forward(self, x):
+        out = F.leaky_relu(x, 0.2)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
+        out = self.conv1(out)
+        out = self.conv2(F.leaky_relu(out, 0.2))
+        out += shortcut
+        return out
+
+
+class PreActEBlock(nn.Module):
+    """
+    Pre-activation version of the BasicBlock.
+    https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
+    """
+    expansion = 1
+
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
+        super(PreActEBlock, self).__init__()
+        # self.bn1 = nn.BatchNorm2d(dim_in)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+        # self.bn2 = nn.BatchNorm2d(dim_out)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
+
+        if dim_in != self.expansion * dim_out:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
+            )
+
+    def forward(self, x):
+        out = F.relu(x)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
+        out = self.conv1(out)
+        out = self.conv2(F.relu(out))
+        out += shortcut
+        return out
+
+
+class PreActDownsampleBlock(nn.Module):
+    """
+    Pre-activation version of the BasicBlock.
+    https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
+    """
+    expansion = 1
+
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
+        super(PreActDownsampleBlock, self).__init__()
+        self.in1 = nn.InstanceNorm2d(dim_in)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+        self.in2 = nn.InstanceNorm2d(dim_out)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
+
+        if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(x))
+        out = F.relu(self.in1(x))
         shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-        out = self.conv2(F.relu(self.bn2(out)))
-        out = self.conv3(F.relu(self.bn3(out)))
+        out = self.conv2(F.relu(self.in2(out)))
         out += shortcut
         return out
+
+
+class PreActInterBlock(nn.Module):
+    """
+    Pre-activation version of the BasicBlock.
+    https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
+    """
+    expansion = 1
+
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
+        super(PreActInterBlock, self).__init__()
+        # self.bn1 = nn.BatchNorm2d(dim_in)
+        self.adain1 = AdaptiveInstanceNorm(in_channel=dim_in, style_dim=64, is_upsample=False)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+        # self.bn2 = nn.BatchNorm2d(dim_out)
+        self.adain2 = AdaptiveInstanceNorm(in_channel=dim_in, style_dim=64, is_upsample=False)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
+
+        if dim_in != self.expansion * dim_out:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
+            )
+
+    def forward(self, x, style_code):
+        out = F.relu(self.adain1(x, style_code))
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
+        out = self.conv1(out)
+        out = self.conv2(F.relu(self.adain2(out, style_code)))
+        out += shortcut
+        return out
+
+
+class PreActUpsampleBlock(nn.Module):
+    """
+    Pre-activation version of the BasicBlock.
+    https://github.com/kuangliu/pytorch-cifar/blob/master/models/preact_resnet.py
+
+    set bias=True w.r.t paper says bias should be zero, bias=False w.r.t original github project
+    """
+    expansion = 1
+
+    def __init__(self, dim_in, dim_out, stride=1, bias=True):
+        super(PreActUpsampleBlock, self).__init__()
+        # self.bn1 = nn.BatchNorm2d(dim_in)
+        self.adain1 = AdaptiveInstanceNorm(dim_in, 64, False)
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+        # self.bn2 = nn.BatchNorm2d(dim_out)
+        self.adain2 = AdaptiveInstanceNorm(dim_in, 64, True)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
+
+        if dim_in != self.expansion * dim_out:
+            self.shortcut = nn.Sequential(
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
+            )
+
+    def forward(self, x, style_code):
+        out = F.relu(self.adain1(x, style_code))
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
+        out = self.conv1(out)
+        out = self.conv2(F.relu(self.adain2(out, style_code)))
+        out += shortcut
+        return out
+
+
+# class PreActBottleneck(nn.Module):
+#     """
+#     Pre-activation version of the original Bottleneck module.
+#     """
+#     expansion = 4
+#
+#     def __init__(self, dim_in, dim_out, stride=1, bias=True):
+#         super(PreActBottleneck, self).__init__()
+#         self.bn1 = nn.BatchNorm2d(dim_in)
+#         self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=1, bias=bias)
+#         self.bn2 = nn.BatchNorm2d(dim_out)
+#         self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
+#         self.bn3 = nn.BatchNorm2d(dim_out)
+#         self.conv3 = nn.Conv2d(dim_out, self.expansion * dim_out, kernel_size=1, bias=bias)
+#
+#         if stride != 1 or dim_in != self.expansion * dim_out:
+#             self.shortcut = nn.Sequential(
+#                 nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
+#             )
+#
+#     def forward(self, x):
+#         out = F.relu(self.bn1(x))
+#         shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
+#         out = self.conv1(out)
+#         out = self.conv2(F.relu(self.bn2(out)))
+#         out = self.conv3(F.relu(self.bn3(out)))
+#         out += shortcut
+#         return out
 
 
 def calc_mean_std(feat, eps=1e-5):
@@ -162,11 +317,21 @@ class EqualLinear(nn.Module):
 
 
 class AdaptiveInstanceNorm(nn.Module):
-    def __init__(self, in_channel, style_dim):
+    def __init__(self, in_channel, style_dim, is_upsample=False):
+        """
+
+        :param in_channel:
+        :param style_dim:
+        :param is_upsample:  True upsample False inter
+        """
         super().__init__()
 
         self.norm = nn.InstanceNorm2d(in_channel)
-        self.style = EqualLinear(style_dim, in_channel * 2)
+
+        if not is_upsample:
+            self.style = EqualLinear(style_dim, in_channel * 2)
+        else:
+            self.style = EqualLinear(style_dim, in_channel)
 
         self.style.linear.bias.data[:in_channel] = 1
         self.style.linear.bias.data[in_channel:] = 0
@@ -204,24 +369,24 @@ class Generator(nn.Module):
         #     # layers.append(nn.ReLU(inplace=True))
         #     curr_dim = curr_dim * 2
         # self.encoder = encoder
-        self.resblk1 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk1 = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool1 = nn.AvgPool2d(2)
-        self.in1 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+        # self.in1 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
         curr_dim = curr_dim * 2
 
-        self.resblk2 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk2 = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool2 = nn.AvgPool2d(2)
-        self.in2 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+        # self.in2 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
         curr_dim = curr_dim * 2
 
-        self.resblk3 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk3 = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool3 = nn.AvgPool2d(2)
-        self.in3 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+        # self.in3 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
         curr_dim = curr_dim * 2
 
-        self.resblk4 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk4 = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool4 = nn.AvgPool2d(2)
-        self.in4 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+        # self.in4 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
         curr_dim = curr_dim * 2
 
         # Bottleneck layers.
@@ -229,38 +394,38 @@ class Generator(nn.Module):
         # for i in range(2):
         #     bottleneck.append(PreActBottleneck(dim_in=curr_dim, dim_out=curr_dim))
         #     bottleneck.append(nn.InstanceNorm2d(curr_dim // 2, affine=True, track_running_stats=True))
-        self.resblk1_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
-        self.in1_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
+        self.resblk1_bottleneck = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim)
+        # self.in1_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
 
-        self.resblk2_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
-        self.in2_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
+        self.resblk2_bottleneck = PreActDownsampleBlock(dim_in=curr_dim, dim_out=curr_dim)
+        # self.in2_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
 
-        self.resblk3_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
-        self.adain3_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
+        self.resblk3_bottleneck = PreActInterBlock(dim_in=curr_dim, dim_out=curr_dim)
+        # self.adain3_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
 
-        self.resblk4_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
-        self.adain4_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
+        self.resblk4_bottleneck = PreActInterBlock(dim_in=curr_dim, dim_out=curr_dim)
+        # self.adain4_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
 
         # Up-sampling layers.
-        self.resblk1_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+        self.resblk1_upsample = PreActUpsampleBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
         # self.upsample1 = nn.ConvTranspose2d(curr_dim, curr_dim // 2, kernel_size=4, stride=2, padding=1, bias=False)
         # self.upsample1 = F.interpolate(scale_factor=2, mode='nearest')
-        self.adain1_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+        # self.adain1_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
         curr_dim = curr_dim // 2
 
-        self.resblk2_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+        self.resblk2_upsample = PreActUpsampleBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
         # self.upsample2 = F.interpolate(scale_factor=2, mode='nearest')
-        self.adain2_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+        # self.adain2_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
         curr_dim = curr_dim // 2
 
-        self.resblk3_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+        self.resblk3_upsample = PreActUpsampleBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
         # self.upsample3 = F.interpolate(scale_factor=2, mode='nearest')
-        self.adain3_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+        # self.adain3_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
         curr_dim = curr_dim // 2
 
-        self.resblk4_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+        self.resblk4_upsample = PreActUpsampleBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
         # self.upsample4 = F.interpolate(scale_factor=2, mode='nearest')
-        self.adain4_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+        # self.adain4_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
         curr_dim = curr_dim // 2
 
         # for i in range(2):
@@ -289,59 +454,224 @@ class Generator(nn.Module):
         # output = self.encoder(output)
         output = self.resblk1(output)
         output = self.avgpool1(output)
-        output = self.in1(output)
+        # output = self.in1(output)
 
         output = self.resblk2(output)
         output = self.avgpool2(output)
-        output = self.in2(output)
+        # output = self.in2(output)
 
         output = self.resblk3(output)
         output = self.avgpool3(output)
-        output = self.in3(output)
+        # output = self.in3(output)
 
         output = self.resblk4(output)
         output = self.avgpool4(output)
-        output = self.in4(output)
+        # output = self.in4(output)
 
         # bottleneck with IN and AdaIN
         output = self.resblk1_bottleneck(output)
-        output = self.in1_bottleneck(output)
+        # output = self.in1_bottleneck(output)
 
         output = self.resblk2_bottleneck(output)
-        output = self.in2_bottleneck(output)
+        # output = self.in2_bottleneck(output)
 
-        output = self.resblk3_bottleneck(output)
+        output = self.resblk3_bottleneck(output, style_code)
         # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain3_bottleneck(output, style_code)
+        # output = self.adain3_bottleneck(output, style_code)
 
-        output = self.resblk4_bottleneck(output)
+        output = self.resblk4_bottleneck(output, style_code)
         # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain4_bottleneck(output, style_code)
+        # output = self.adain4_bottleneck(output, style_code)
 
         # decoder: upsampling
-        output = self.resblk1_upsample(output)
         output = F.interpolate(output, scale_factor=2, mode='nearest')
+        output = self.resblk1_upsample(output, style_code)
         # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain1_upsample(output, style_code)
+        # output = self.adain1_upsample(output, style_code)
 
-        output = self.resblk2_upsample(output)
         output = F.interpolate(output, scale_factor=2, mode='nearest')
-        # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain2_upsample(output, style_code)
+        output = self.resblk2_upsample(output, style_code)
 
-        output = self.resblk3_upsample(output)
-        output = F.interpolate(output, scale_factor=2, mode='nearest')
         # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain3_upsample(output, style_code)
+        # output = self.adain2_upsample(output, style_code)
 
-        output = self.resblk4_upsample(output)
         output = F.interpolate(output, scale_factor=2, mode='nearest')
+        output = self.resblk3_upsample(output, style_code)
+
         # output = adaptive_instance_normalization(output, style_code)
-        output = self.adain4_upsample(output, style_code)
+        # output = self.adain3_upsample(output, style_code)
+
+        output = F.interpolate(output, scale_factor=2, mode='nearest')
+        output = self.resblk4_upsample(output, style_code)
+        # output = adaptive_instance_normalization(output, style_code)
+        # output = self.adain4_upsample(output, style_code)
 
         return self.output_conv(output)
 
         # return self.main(x)
+
+
+# class Generator(nn.Module):
+#     """
+#     Generator network.
+#     """
+#
+#     def __init__(self, conv_dim=64):
+#         super(Generator, self).__init__()
+#
+#         # layers = [nn.Conv2d(3, 32, kernel_size=1, stride=1, padding=3, bias=False)]
+#         self.input_conv = nn.Conv2d(3, 32, kernel_size=1)
+#         # layers.append(nn.InstanceNorm2d(conv_dim, affine=True, track_running_stats=True))
+#         # layers.append(nn.ReLU(inplace=True))
+#
+#         # Down-sampling layers.
+#         curr_dim = conv_dim
+#         # encoder = []
+#         # for i in range(4):
+#         #     encoder.append(PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2))
+#         #     encoder.append(nn.AvgPool2d(2))
+#         #     encoder.append(nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True))
+#         #     # layers.append(nn.ReLU(inplace=True))
+#         #     curr_dim = curr_dim * 2
+#         # self.encoder = encoder
+#         self.resblk1 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+#         self.avgpool1 = nn.AvgPool2d(2)
+#         self.in1 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+#         curr_dim = curr_dim * 2
+#
+#         self.resblk2 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+#         self.avgpool2 = nn.AvgPool2d(2)
+#         self.in2 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+#         curr_dim = curr_dim * 2
+#
+#         self.resblk3 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+#         self.avgpool3 = nn.AvgPool2d(2)
+#         self.in3 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+#         curr_dim = curr_dim * 2
+#
+#         self.resblk4 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+#         self.avgpool4 = nn.AvgPool2d(2)
+#         self.in4 = nn.InstanceNorm2d(curr_dim * 2, affine=True, track_running_stats=True)
+#         curr_dim = curr_dim * 2
+#
+#         # Bottleneck layers.
+#         # bottleneck = []
+#         # for i in range(2):
+#         #     bottleneck.append(PreActBottleneck(dim_in=curr_dim, dim_out=curr_dim))
+#         #     bottleneck.append(nn.InstanceNorm2d(curr_dim // 2, affine=True, track_running_stats=True))
+#         self.resblk1_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+#         self.in1_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
+#
+#         self.resblk2_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+#         self.in2_bottleneck = nn.InstanceNorm2d(curr_dim, affine=True, track_running_stats=True)
+#
+#         self.resblk3_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+#         self.adain3_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
+#
+#         self.resblk4_bottleneck = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+#         self.adain4_bottleneck = AdaptiveInstanceNorm(curr_dim, 64)
+#
+#         # Up-sampling layers.
+#         self.resblk1_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+#         # self.upsample1 = nn.ConvTranspose2d(curr_dim, curr_dim // 2, kernel_size=4, stride=2, padding=1, bias=False)
+#         # self.upsample1 = F.interpolate(scale_factor=2, mode='nearest')
+#         self.adain1_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+#         curr_dim = curr_dim // 2
+#
+#         self.resblk2_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+#         # self.upsample2 = F.interpolate(scale_factor=2, mode='nearest')
+#         self.adain2_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+#         curr_dim = curr_dim // 2
+#
+#         self.resblk3_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+#         # self.upsample3 = F.interpolate(scale_factor=2, mode='nearest')
+#         self.adain3_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+#         curr_dim = curr_dim // 2
+#
+#         self.resblk4_upsample = PreActBlock(dim_in=curr_dim, dim_out=curr_dim // 2)
+#         # self.upsample4 = F.interpolate(scale_factor=2, mode='nearest')
+#         self.adain4_upsample = AdaptiveInstanceNorm(curr_dim // 2, 64)
+#         curr_dim = curr_dim // 2
+#
+#         # for i in range(2):
+#         #     layers.append(ResidualBlock(dim_in=curr_dim, dim_out=curr_dim))
+#         #     layers.append(nn.AdaptiveInstanceNorm(curr_dim // 2, affine=True, track_running_stats=True))
+#
+#         # # Up-sampling layers.
+#         # for i in range(4):
+#         #     layers.append(ResidualBlock(dim_in=curr_dim, dim_out=curr_dim))
+#         #     layers.append(nn.ConvTranspose2d(curr_dim, curr_dim // 2, kernel_size=4, stride=2, padding=1, bias=False))
+#         #     layers.append(nn.AdaptiveInstanceNorm(curr_dim // 2, affine=True, track_running_stats=True))
+#         #     # layers.append(nn.ReLU(inplace=True))
+#         #     curr_dim = curr_dim // 2
+#
+#         # layers.append(nn.Conv2d(curr_dim, 3, kernel_size=1, stride=1, padding=3, bias=False))
+#         # self.main = nn.Sequential(*layers)
+#         self.output_conv = nn.Conv2d(curr_dim, 3, kernel_size=1)
+#
+#     def forward(self, x, style_code):
+#         # Replicate spatially and concatenate domain information.
+#         # Note that this type of label conditioning does not work at all if we use reflection padding in Conv2d.
+#         # This is because instance normalization ignores the shifting (or bias) effect.
+#         output = self.input_conv(x)
+#
+#         # encoder: downsampling
+#         # output = self.encoder(output)
+#         output = self.resblk1(output)
+#         output = self.avgpool1(output)
+#         output = self.in1(output)
+#
+#         output = self.resblk2(output)
+#         output = self.avgpool2(output)
+#         output = self.in2(output)
+#
+#         output = self.resblk3(output)
+#         output = self.avgpool3(output)
+#         output = self.in3(output)
+#
+#         output = self.resblk4(output)
+#         output = self.avgpool4(output)
+#         output = self.in4(output)
+#
+#         # bottleneck with IN and AdaIN
+#         output = self.resblk1_bottleneck(output)
+#         output = self.in1_bottleneck(output)
+#
+#         output = self.resblk2_bottleneck(output)
+#         output = self.in2_bottleneck(output)
+#
+#         output = self.resblk3_bottleneck(output)
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain3_bottleneck(output, style_code)
+#
+#         output = self.resblk4_bottleneck(output)
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain4_bottleneck(output, style_code)
+#
+#         # decoder: upsampling
+#         output = self.resblk1_upsample(output)
+#         output = F.interpolate(output, scale_factor=2, mode='nearest')
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain1_upsample(output, style_code)
+#
+#         output = self.resblk2_upsample(output)
+#         output = F.interpolate(output, scale_factor=2, mode='nearest')
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain2_upsample(output, style_code)
+#
+#         output = self.resblk3_upsample(output)
+#         output = F.interpolate(output, scale_factor=2, mode='nearest')
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain3_upsample(output, style_code)
+#
+#         output = self.resblk4_upsample(output)
+#         output = F.interpolate(output, scale_factor=2, mode='nearest')
+#         # output = adaptive_instance_normalization(output, style_code)
+#         output = self.adain4_upsample(output, style_code)
+#
+#         return self.output_conv(output)
+#
+#         # return self.main(x)
 
 
 class Discriminator(nn.Module):
@@ -377,27 +707,27 @@ class Discriminator(nn.Module):
 
         self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
 
-        self.resblk1 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk1 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool1 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk2 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk2 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool2 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk3 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk3 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool3 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk4 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk4 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool4 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk5 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk5 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool5 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk6 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+        self.resblk6 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim)
         self.avgpool6 = nn.AvgPool2d(2)
         # curr_dim = curr_dim * 2
 
@@ -407,7 +737,8 @@ class Discriminator(nn.Module):
         self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
         self.lrelu2 = nn.LeakyReLU(0.01)
 
-        self.out = nn.Linear(curr_dim, num_domains)
+        # self.out = nn.Linear(curr_dim, num_domains)
+        self.outputs = nn.ModuleList([nn.Linear(curr_dim, 1) for _ in range(num_domains)])
 
     def forward(self, x, num_domains=6):
         x = self.conv1x1(x)
@@ -437,8 +768,14 @@ class Discriminator(nn.Module):
         # h = self.main(x)
         x = x.view(-1, self.curr_dim)
         # return [self.out(x) for _ in range(num_domains)]
-        out = self.out(x)
-        return out
+        # out = self.out(x)
+        # return out
+
+        # return torch.squeeze(torch.stack([output(x) for output in self.outputs]))
+        # do matrix transpose op
+        return torch.transpose(torch.squeeze(torch.stack([output(x) for output in self.outputs])), 0, 1)
+
+        # return [output(x) for output in self.outputs]
 
 
 # class StyleEncoder(nn.Module):
@@ -511,27 +848,27 @@ class StyleEncoder(nn.Module):
 
         self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
 
-        self.resblk1 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk1 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool1 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk2 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk2 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool2 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk3 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk3 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool3 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk4 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk4 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool4 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk5 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
+        self.resblk5 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool5 = nn.AvgPool2d(2)
         curr_dim = curr_dim * 2
 
-        self.resblk6 = PreActBlock(dim_in=curr_dim, dim_out=curr_dim)
+        self.resblk6 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim)
         self.avgpool6 = nn.AvgPool2d(2)
         # curr_dim = curr_dim * 2
 
@@ -541,7 +878,8 @@ class StyleEncoder(nn.Module):
         self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
         self.lrelu2 = nn.LeakyReLU(0.01)
 
-        self.out = nn.Linear(curr_dim, dimension)
+        # self.out = nn.Linear(curr_dim, dimension)
+        self.outputs = nn.ModuleList([nn.Linear(curr_dim, dimension) for _ in range(num_domains)])
 
     def forward(self, x, num_domains=2):
         x = self.conv1x1(x)
@@ -573,7 +911,8 @@ class StyleEncoder(nn.Module):
         # return [self.out(x) for _ in range(num_domains)]
         # out = self.out(x)
         # return out
-        return [self.out(x) for _ in range(num_domains)]
+        # return [self.out(x) for _ in range(num_domains)]
+        return [output(x) for output in self.outputs]
 
 
 class Mapping(nn.Module):
@@ -581,7 +920,7 @@ class Mapping(nn.Module):
     Mapping network.
     """
 
-    def __init__(self, image_size=128, repeat_num=6):
+    def __init__(self, image_size=128, repeat_num=6, num_domains=2):
         """
 
         :param image_size:
@@ -596,7 +935,10 @@ class Mapping(nn.Module):
             layers.append(nn.Linear(512, 512))
             layers.append(nn.ReLU())
 
-        self.out = nn.Linear(512, 64)
+        # output branches
+        # https://pytorch.org/docs/stable/nn.html#modulelist
+        # self.out = nn.Linear(512, 64)
+        self.outputs = nn.ModuleList([nn.Linear(512, 64) for _ in range(num_domains)])
 
         self.main = nn.Sequential(*layers)
 
@@ -608,7 +950,7 @@ class Mapping(nn.Module):
         :return:
         """
         h = self.main(z)
-        return [self.out(h) for _ in range(num_domains)]
+        return [output(h) for output in self.outputs]
 
 
 def init_weights(m):
@@ -620,7 +962,8 @@ def init_weights(m):
     """
     # print(m)
     if isinstance(m, nn.Module) and not isinstance(m, AdaptiveInstanceNorm):
-        if not isinstance(m, nn.BatchNorm2d) and not isinstance(m, nn.AvgPool2d) and not isinstance(m, nn.InstanceNorm2d)\
+        if not isinstance(m, nn.BatchNorm2d) and not isinstance(m, nn.AvgPool2d) and not isinstance(m,
+                                                                                                    nn.InstanceNorm2d) \
                 and not isinstance(m, nn.ReLU) and not isinstance(m, nn.LeakyReLU):
             # nn.init.kaiming_normal_(m.weight)
             modules = [f for f in m.children()]
