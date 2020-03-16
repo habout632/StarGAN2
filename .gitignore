@@ -117,3 +117,6 @@ logs/
 *.jpg
 *.png
 
+
+*.caffemodel
+
