@@ -1,3 +1,5 @@
+from os.path import isfile, join
+
 import pandas as pd
 
 from torch.utils import data
@@ -8,6 +10,8 @@ import torch
 import os
 import random
 from shutil import copyfile, copy2
+
+from helpers.AgeGender import get_gender
 
 
 class CelebA(data.Dataset):
@@ -166,7 +170,7 @@ def get_loader(image_dir, crop_size=178, image_size=128,
     transform = []
     if mode == 'train':
         transform.append(T.RandomHorizontalFlip())
-    transform.append(T.CenterCrop(crop_size))
+    # transform.append(T.CenterCrop(crop_size))
     transform.append(T.Resize(image_size))
     transform.append(T.ToTensor())
     transform.append(T.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)))
@@ -229,41 +233,114 @@ def process_celeba():
         print(attrs_df.iloc[i, 0])
         print(type(male))
 
-
     return
 
 
-def getFaceBox(net, frame, conf_threshold=0.7):
-    frameOpencvDnn = frame.copy()
-    frameHeight = frameOpencvDnn.shape[0]
-    frameWidth = frameOpencvDnn.shape[1]
-    blob = cv.dnn.blobFromImage(frameOpencvDnn, 1.0, (300, 300), [104, 117, 123], True, False)
+def process_celebahq():
+    """
+    split aligned celeba images into multiple domain folders
+    :return:
+    """
+    csv_file = "/data/datasets/CelebA/Anno/list_attr_celeba.txt"
+    attrs_df = pd.read_csv(csv_file, delim_whitespace=True, skiprows=2)
 
-    net.setInput(blob)
-    detections = net.forward()
-    bboxes = []
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > conf_threshold:
-            x1 = int(detections[0, 0, i, 3] * frameWidth)
-            y1 = int(detections[0, 0, i, 4] * frameHeight)
-            x2 = int(detections[0, 0, i, 5] * frameWidth)
-            y2 = int(detections[0, 0, i, 6] * frameHeight)
-            bboxes.append([x1, y1, x2, y2])
-            cv.rectangle(frameOpencvDnn, (x1, y1), (x2, y2), (0, 255, 0), int(round(frameHeight/150)), 8)
-    return frameOpencvDnn, bboxes
+    # # print(attrs_df.loc[0, :])
+    # for index, row in attrs_df.iterrows():
+    #     try:
+    #         print(row[0])
+    #         # print(row[20])
+    #     except Exception as e:
+    #         print(str(e))
+    total = len(attrs_df)
+    for i in range(total):
+        if i < int(0.7 * total):
+            target = "train"
+        else:
+            target = "test"
+        base_path = "/data/datasets/CelebA-HQ/celeba-1024"
+        male_path = "/data/datasets/celeba-hq/{}/male".format(target)
+        female_path = "/data/datasets/celeba-hq/{}/female".format(target)
 
+        if not os.path.exists(male_path):
+            os.mkdir(male_path)
 
-genderProto = "gender_deploy.prototxt"
-genderModel = "gender_net.caffemodel"
-genderList = ['Male', 'Female']
+        if not os.path.exists(female_path):
+            os.mkdir(female_path)
 
-blob = cv.dnn.blobFromImage(face, 1, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
-genderNet.setInput(blob)
-genderPreds = genderNet.forward()
-gender = genderList[genderPreds[0].argmax()]
-print("Gender Output : {}".format(genderPreds))
-print("Gender : {}".format(gender))
+        src_file = os.path.join(base_path, attrs_df.iloc[i, 0])
+        male = attrs_df.iloc[i, 21]
+
+        if os.path.isfile(src_file):
+            if male == 1:
+                # male
+                # copy2('/src/file.ext', '/dst/dir')
+                copy2(src_file, male_path)
+            else:
+                # female
+                copy2(src_file, female_path)
+            print(attrs_df.iloc[i, 0])
+            print(type(male))
+
+    return
+
+#
+# def process_celebahq(mypath="/data/datasets/CelebA-HQ/celeba-1024"):
+#     """
+#     split aligned celeba images into multiple domain folders
+#     :return:
+#     """
+#
+#     for i, f in enumerate(os.listdir(mypath)):
+#         try:
+#             if i < 25000:
+#                 target = "train"
+#             else:
+#                 target = "test"
+#             male_path = "/data/datasets/celeba-hq/{}/male".format(target)
+#             female_path = "/data/datasets/celeba-hq/{}/female".format(target)
+#             image_file = join(mypath, f)
+#             print(image_file)
+#             gender, confidence = get_gender(image_file)
+#             if confidence < 0.8:
+#                 continue
+#             if gender == "Male":
+#                 copy2(image_file, male_path)
+#             else:
+#                 copy2(image_file, female_path)
+#             # print(onlyfiles)
+#             print(i)
+#         except Exception as e:
+#             print(str(e))
+#     # total = len(attrs_df)
+#     # for i in range(total):
+#     #     if i < int(0.7 * total):
+#     #         target = "train"
+#     #     else:
+#     #         target = "test"
+#     #     base_path = "/data/datasets/CelebA/Img/img_align_celeba"
+#     #     male_path = "/data/datasets/celeba/{}/male".format(target)
+#     #     female_path = "/data/datasets/celeba/{}/female".format(target)
+#     #
+#     #     if not os.path.exists(male_path):
+#     #         os.mkdir(male_path)
+#     #
+#     #     if not os.path.exists(female_path):
+#     #         os.mkdir(female_path)
+#     #
+#     #     src_file = os.path.join(base_path, attrs_df.iloc[i, 0])
+#     #     male = attrs_df.iloc[i, 21]
+#     #     if male == 1:
+#     #         # male
+#     #         # copy2('/src/file.ext', '/dst/dir')
+#     #         copy2(src_file, male_path)
+#     #     else:
+#     #         # female
+#     #         copy2(src_file, female_path)
+#     #     print(attrs_df.iloc[i, 0])
+#     #     print(type(male))
+#
+#     return
+
 
 if __name__ == "__main__":
-    process_celeba()
+    process_celebahq()

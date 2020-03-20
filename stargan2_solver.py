@@ -162,20 +162,31 @@ class Solver(object):
         print("The number of parameters: {}".format(num_params))
 
     def restore_model(self, resume_iters):
-        """Restore the trained generator and discriminator."""
+        """
+        Restore the trained generator and discriminator.
+        """
         print('Loading the trained models from step {}...'.format(resume_iters))
         G_path = os.path.join(self.model_save_dir, '{}-G.ckpt'.format(resume_iters))
         D_path = os.path.join(self.model_save_dir, '{}-D.ckpt'.format(resume_iters))
+        E_path = os.path.join(self.model_save_dir, '{}-E.ckpt'.format(resume_iters))
+        F_path = os.path.join(self.model_save_dir, '{}-F.ckpt'.format(resume_iters))
+
         self.G.load_state_dict(torch.load(G_path, map_location=lambda storage, loc: storage))
         self.D.load_state_dict(torch.load(D_path, map_location=lambda storage, loc: storage))
+        self.E.load_state_dict(torch.load(E_path, map_location=lambda storage, loc: storage))
+        self.F.load_state_dict(torch.load(F_path, map_location=lambda storage, loc: storage))
 
     def build_tensorboard(self):
-        """Build a tensorboard logger."""
+        """
+        Build a tensorboard logger.
+        """
         from logger import Logger
         self.logger = Logger(self.log_dir)
 
     def update_lr(self, g_lr, d_lr):
-        """Decay learning rates of the generator and discriminator."""
+        """
+        Decay learning rates of the generator and discriminator.
+        """
         for param_group in self.g_optimizer.param_groups:
             param_group['lr'] = g_lr
         for param_group in self.d_optimizer.param_groups:
@@ -450,8 +461,8 @@ class Solver(object):
 
         # Compute loss with fake images.
         # s_tilde_trg = torch.index_select(torch.stack(s_tilde, 1), 1, label_trg.squeeze().long())[:, 0, :]
-        s_tilde_trg = torch.squeeze(torch.stack([torch.index_select(x, 0, i) for x, i in
-                                                 zip(torch.chunk(torch.stack(s_tilde, 1), chunks=num_domains, dim=1),
+        s_tilde_trg = torch.squeeze(torch.stack([torch.index_select(x, 1, i) for x, i in
+                                                 zip(torch.chunk(torch.stack(s_tilde, 1), chunks=self.batch_size, dim=0),
                                                      label_trg.squeeze().long())]))
         return s_tilde_trg
 
@@ -464,9 +475,9 @@ class Solver(object):
         """
         s_hat_sty = self.E(x_reference, num_domains=self.num_domains)
         # s_hat_trg = torch.index_select(torch.stack(s_hat_sty, 1), 1, label_trg.squeeze().long())[:, 0, :]
-        s_hat_trg = torch.squeeze(torch.stack([torch.index_select(x, 0, i) for x, i in
-                                               zip(torch.chunk(torch.stack(s_hat_sty, 1), chunks=self.num_domains,
-                                                               dim=1),
+        s_hat_trg = torch.squeeze(torch.stack([torch.index_select(x, 1, i) for x, i in
+                                               zip(torch.chunk(torch.stack(s_hat_sty, 1), chunks=self.batch_size,
+                                                               dim=0),
                                                    label_trg.squeeze().long())]))
         return s_hat_trg
 
@@ -519,7 +530,8 @@ class Solver(object):
                 try:
                     x_real, label_org = next(data_iter)
                     label_org = torch.unsqueeze(label_org, dim=1)
-                except:
+                except Exception as e:
+                    print(str(e))
                     data_iter = iter(self.data_loader)
                     x_real, label_org = next(data_iter)
 
