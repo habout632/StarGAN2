@@ -74,7 +74,7 @@ $ python main.py --mode test --dataset CelebA --image_size 128 --c_dim 5 \
 ```
 
 ### 5. Pretrained model
-Once finishing trained on celebhq, we will publish the pretrained model.The Pretrained model will be provided in two ways:
+Once finished training on celebhq, we will publish the pretrained model.The Pretrained model will be provided in two ways:
 Google Drive
 Baidu Disk 
 To download a pretrained model checkpoint, run the script below. The pretrained model checkpoint will be downloaded and saved into `./stargan_celeba_256/models` directory.
@@ -112,3 +112,7 @@ $ python main.py --mode test --dataset CelebA --image_size 256 --c_dim 5 \
 
 ## Acknowledgement
 This work was mainly inspired by [StarGAN_v2-Tensorflow](https://github.com/taki0112/StarGAN_v2-Tensorflow), appreciate helping of the author [Junho Kim](https://github.com/taki0112)
+
+
+## Contribution
+we still need your help, as we stuck on reference guided image synthesis and computing resources(multiple gpus training), any contribution(demos, code and the docs)is welcomed 
