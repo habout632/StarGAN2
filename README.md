@@ -6,7 +6,7 @@ Unofficial PyTorch implementation of [StarGAN-v2](https://arxiv.org/abs/1711.090
 This repository is forked from Official StarGAN PyTorch v1.0 and add new features to the model according to Paper StarGAN v2.
  StarGAN can flexibly translate an input image to any desired target domain using only a single generator and a discriminator.
 
-<p align="center"><img width="100%" src="jpg/main.jpg" /></p>
+<p align="center"><img width="100%" src="jpg/result_celebahq2.jpg" /></p>
 
 <br/>
 
@@ -97,13 +97,13 @@ $ python main.py --mode test --dataset CelebA --image_size 256 --c_dim 5 \
 ## Results
 
 ### 1. Latent Guided Image Generation on CelebA-HQ
-<p align="center"><img width="100%" src="jpg/result_celebahq2.jpg" /></p>
+<p align="center"><img width="100%" src="jpg/result_celebahq3.jpg" /></p>
 
 ### 2. Latent Guided Image Generation on CelebA-HQ
-<p align="center"><img width="100%" src="jpg/result_celebahq3.jpg" /></p>
+<p align="center"><img width="100%" src="jpg/result_celebahq4.jpg" /></p>
 
 ### 3. Reference Guided Image Generation on CelebA-HQ, work still in progress
-<p align="center"><img width="100%" src="jpg/result_celebahq3.jpg" /></p>
+<p align="center"><img width="100%" src="jpg/result_celebahq1.jpg" /></p>
 
 
 <br/>
