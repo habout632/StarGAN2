@@ -59,26 +59,6 @@ from math import sqrt
 #         out += shortcut
 #         return out
 
-class CustomConv2d(nn.Module):
-    """
-    custom conv2d with reflection padding, avoid code duplication
-    """
-
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True):
-        super(CustomConv2d, self).__init__()
-        self.padding = padding
-        self.reflection_pad = nn.ReflectionPad2d(1)
-        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=0,
-                              bias=bias)
-
-    def forward(self, x):
-        if self.padding > 0:
-            out = self.reflection_pad(x)
-            out = self.conv(out)
-        else:
-            out = self.conv(x)
-        return out
-
 
 class PreActDBlock(nn.Module):
     """
@@ -92,34 +72,20 @@ class PreActDBlock(nn.Module):
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActDBlock, self).__init__()
         # self.bn1 = nn.BatchNorm2d(dim_in)
-        # self.reflection_pad = nn.ReflectionPad2d(1)
-        # self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.conv1 = CustomConv2d(in_channels=dim_in, out_channels=dim_out, kernel_size=3, stride=stride, padding=1,
-                                  bias=bias)
-
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         # self.bn2 = nn.BatchNorm2d(dim_out)
-        # self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv2 = CustomConv2d(in_channels=dim_out, out_channels=dim_out, kernel_size=3, stride=1, padding=1,
-                                  bias=bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                # nn.ReflectionPad2d(1),
-                # nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
-                CustomConv2d(in_channels=dim_in, out_channels=self.expansion * dim_out, kernel_size=1, stride=stride,
-                             padding=0, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
             )
 
     def forward(self, x):
         out = F.leaky_relu(x, 0.2)
-        # out = self.reflection_pad(out)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-
-        out = F.leaky_relu(out, 0.2)
-        # out = self.reflection_pad(out)
-        out = self.conv2(out)
-
-        shortcut = self.shortcut(x) if hasattr(self, 'shortcut') else x
+        out = self.conv2(F.leaky_relu(out, 0.2))
         out += shortcut
         return out
 
@@ -136,34 +102,20 @@ class PreActEBlock(nn.Module):
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActEBlock, self).__init__()
         # self.bn1 = nn.BatchNorm2d(dim_in)
-        # self.reflection_pad = nn.ReflectionPad2d(1)
-        # self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.conv1 = CustomConv2d(in_channels=dim_in, out_channels=dim_out, kernel_size=3, stride=stride, padding=1,
-                                  bias=bias)
-
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         # self.bn2 = nn.BatchNorm2d(dim_out)
-        # self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv2 = CustomConv2d(in_channels=dim_out, out_channels=dim_out, kernel_size=3, stride=1, padding=1,
-                                  bias=bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                # nn.ReflectionPad2d(1),
-                # nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
-                CustomConv2d(in_channels=dim_in, out_channels=self.expansion * dim_out, kernel_size=1, stride=stride,
-                             padding=0, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
             )
 
     def forward(self, x):
         out = F.relu(x)
-        # out = self.reflection_pad(out)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-
-        out = F.relu(out)
-        # out = self.reflection_pad(out)
-        out = self.conv2(out)
-
-        shortcut = self.shortcut(x) if hasattr(self, 'shortcut') else x
+        out = self.conv2(F.relu(out))
         out += shortcut
         return out
 
@@ -179,38 +131,21 @@ class PreActDownsampleBlock(nn.Module):
 
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActDownsampleBlock, self).__init__()
-
-        # self.reflection_pad = nn.ReflectionPad2d(1)
         self.in1 = nn.InstanceNorm2d(dim_in)
-        # self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.conv1 = CustomConv2d(in_channels=dim_in, out_channels=dim_out, kernel_size=3, stride=stride, padding=1,
-                                  bias=bias)
-
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         self.in2 = nn.InstanceNorm2d(dim_out)
-        # self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv2 = CustomConv2d(in_channels=dim_out, out_channels=dim_out, kernel_size=3, stride=1, padding=1,
-                                  bias=bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                # nn.ReflectionPad2d(1),
-                # nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
-                CustomConv2d(in_channels=dim_in, out_channels=self.expansion * dim_out, kernel_size=1, stride=stride,
-                             padding=0, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x):
-        out = F.relu(x)
-        out = self.in1(out)
-        # out = self.reflection_pad(out)
+        out = F.relu(self.in1(x))
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-
-        out = F.relu(out)
-        out = self.in2(out)
-        # out = self.reflection_pad(out)
-        out = self.conv2(out)
-
-        shortcut = self.shortcut(x) if hasattr(self, 'shortcut') else x
+        out = self.conv2(F.relu(self.in2(out)))
         out += shortcut
         return out
 
@@ -227,38 +162,22 @@ class PreActInterBlock(nn.Module):
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActInterBlock, self).__init__()
         # self.bn1 = nn.BatchNorm2d(dim_in)
-        # self.reflection_pad = nn.ReflectionPad2d(1)
         self.adain1 = AdaptiveInstanceNorm(in_channel=dim_in, style_dim=64, is_upsample=False)
-        # self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.conv1 = CustomConv2d(in_channels=dim_in, out_channels=dim_out, kernel_size=3, stride=stride, padding=1,
-                                  bias=bias)
-
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         # self.bn2 = nn.BatchNorm2d(dim_out)
         self.adain2 = AdaptiveInstanceNorm(in_channel=dim_in, style_dim=64, is_upsample=False)
-        # self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv2 = CustomConv2d(in_channels=dim_out, out_channels=dim_out, kernel_size=3, stride=1, padding=1,
-                                  bias=bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                # nn.ReflectionPad2d(1),
-                # nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
-                CustomConv2d(in_channels=dim_in, out_channels=self.expansion * dim_out, kernel_size=1, stride=stride,
-                             padding=0, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x, style_code):
-        out = F.relu(x)
-        out = self.adain1(out, style_code)
-        # out = self.reflection_pad(out)
+        out = F.relu(self.adain1(x, style_code))
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-
-        out = F.relu(out)
-        out = self.adain2(out, style_code)
-        # out = self.reflection_pad(out)
-        out = self.conv2(out)
-
-        shortcut = self.shortcut(x) if hasattr(self, 'shortcut') else x
+        out = self.conv2(F.relu(self.adain2(out, style_code)))
         out += shortcut
         return out
 
@@ -275,38 +194,22 @@ class PreActUpsampleBlock(nn.Module):
     def __init__(self, dim_in, dim_out, stride=1, bias=True):
         super(PreActUpsampleBlock, self).__init__()
         # self.bn1 = nn.BatchNorm2d(dim_in)
-        # self.reflection_pad = nn.ReflectionPad2d(1)
         self.adain1 = AdaptiveInstanceNorm(dim_in, 64, False)
-        # self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
-        self.conv1 = CustomConv2d(in_channels=dim_in, out_channels=dim_out, kernel_size=3, stride=stride, padding=1,
-                                  bias=bias)
-
+        self.conv1 = nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride, padding=1, bias=bias)
         # self.bn2 = nn.BatchNorm2d(dim_out)
         self.adain2 = AdaptiveInstanceNorm(dim_in, 64, True)
-        # self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
-        self.conv2 = CustomConv2d(in_channels=dim_out, out_channels=dim_out, kernel_size=3, stride=1, padding=1,
-                                  bias=bias)
+        self.conv2 = nn.Conv2d(dim_out, dim_out, kernel_size=3, stride=1, padding=1, bias=bias)
 
         if dim_in != self.expansion * dim_out:
             self.shortcut = nn.Sequential(
-                # nn.ReflectionPad2d(1),
-                # nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=False)
-                CustomConv2d(in_channels=dim_in, out_channels=self.expansion * dim_out, kernel_size=1, stride=stride,
-                             padding=0, bias=False)
+                nn.Conv2d(dim_in, self.expansion * dim_out, kernel_size=1, stride=stride, bias=bias)
             )
 
     def forward(self, x, style_code):
-        out = F.relu(x)
-        out = self.adain1(out, style_code)
-        # out = self.reflection_pad(out)
+        out = F.relu(self.adain1(x, style_code))
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
-
-        out = F.relu(out)
-        out = self.adain2(out, style_code)
-        # out = self.reflection_pad(out)
-        out = self.conv2(out)
-
-        shortcut = self.shortcut(x) if hasattr(self, 'shortcut') else x
+        out = self.conv2(F.relu(self.adain2(out, style_code)))
         out += shortcut
         return out
 
@@ -462,8 +365,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
 
         # layers = [nn.Conv2d(3, 32, kernel_size=1, stride=1, padding=3, bias=False)]
-        # self.input_conv = nn.Conv2d(3, 32, kernel_size=1)
-        self.input_conv = CustomConv2d(in_channels=3, out_channels=32, kernel_size=1)
+        self.input_conv = nn.Conv2d(3, 32, kernel_size=1)
         # layers.append(nn.InstanceNorm2d(conv_dim, affine=True, track_running_stats=True))
         # layers.append(nn.ReLU(inplace=True))
 
@@ -550,8 +452,7 @@ class Generator(nn.Module):
 
         # layers.append(nn.Conv2d(curr_dim, 3, kernel_size=1, stride=1, padding=3, bias=False))
         # self.main = nn.Sequential(*layers)
-        # self.output_conv = nn.Conv2d(curr_dim, 3, kernel_size=1)
-        self.output_conv = CustomConv2d(in_channels=curr_dim, out_channels=3, kernel_size=1)
+        self.output_conv = nn.Conv2d(curr_dim, 3, kernel_size=1)
 
     def forward(self, x, style_code):
         # Replicate spatially and concatenate domain information.
@@ -814,8 +715,7 @@ class Discriminator(nn.Module):
         #
         # self.main = nn.Sequential(*layers)
 
-        # self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
-        self.conv1x1 = CustomConv2d(in_channels=3, out_channels=channel_multiplier, kernel_size=1)
+        self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
 
         self.resblk1 = PreActDBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool1 = nn.AvgPool2d(2)
@@ -844,8 +744,7 @@ class Discriminator(nn.Module):
         self.curr_dim = curr_dim
 
         self.lrelu1 = nn.LeakyReLU(0.01)
-        # self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
-        self.conv4x4 = CustomConv2d(in_channels=curr_dim, out_channels=curr_dim, kernel_size=4)
+        self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
         self.lrelu2 = nn.LeakyReLU(0.01)
 
         # self.out = nn.Linear(curr_dim, num_domains)
@@ -957,8 +856,7 @@ class StyleEncoder(nn.Module):
         #
         # self.main = nn.Sequential(*layers)
 
-        # self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
-        self.conv1x1 = CustomConv2d(in_channels=3, out_channels=channel_multiplier, kernel_size=1)
+        self.conv1x1 = nn.Conv2d(3, channel_multiplier, kernel_size=1)
 
         self.resblk1 = PreActEBlock(dim_in=curr_dim, dim_out=curr_dim * 2)
         self.avgpool1 = nn.AvgPool2d(2)
@@ -987,9 +885,7 @@ class StyleEncoder(nn.Module):
         self.curr_dim = curr_dim
 
         self.lrelu1 = nn.LeakyReLU(0.01)
-        # self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
-        self.conv4x4 = CustomConv2d(in_channels=curr_dim, out_channels=curr_dim, kernel_size=4)
-
+        self.conv4x4 = nn.Conv2d(curr_dim, curr_dim, kernel_size=4)
         self.lrelu2 = nn.LeakyReLU(0.01)
 
         # self.out = nn.Linear(curr_dim, dimension)

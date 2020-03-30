@@ -52,6 +52,11 @@ root/bees/asd932_.png
 ```
 where ‘ants’, ‘bees’ etc. are class labels.
 
+
+[AFHQ Baidu Disk Link](https://pan.baidu.com/s/1-0VlGgL2ctFND_MSzyOf7g)
+extraction code: ptm8
+Useful for China Mainland Developers
+
 ### 3. Training
 To train StarGAN on dataset(CelebA-HQ, AFHQ or any other your own custom dataset, run the training script below. See [here](https://github.com/yunjey/StarGAN/blob/master/jpg/CelebA.md) for a list of selectable attributes in the CelebA dataset. If you change the `selected_attrs` argument, you should also change the `c_dim` argument accordingly.
 
@@ -61,6 +66,9 @@ $ python main.py --mode train --batch_size 2 --image_size 256 --num_domains 2 --
                  --sample_dir /data2/starganv2/celeba/samples --model_save_dir /data2/starganv2/celeba/models \
                  --result_dir /data2/starganv2/celeba/results --image_dir /data/datasets/celeba-hq/train                  
 ```
+
+#### Hardware
+we train StarGAN v2 model on Nvidia GTX 1080 ti GPU, and the number of iterations is more or less 900K, about one week.
 
 ### 4. Testing
 
@@ -74,7 +82,7 @@ $ python main.py --mode test --dataset CelebA --image_size 128 --c_dim 5 \
 ```
 
 ### 5. Pretrained model
-Once finished training on celebhq, we will publish the pretrained model.The Pretrained model will be provided in two ways:
+Once finished training on celebhq, we will publish the pretrained model.The Pretrained model will be provided in two following ways:
 Google Drive
 Baidu Disk 
 To download a pretrained model checkpoint, run the script below. The pretrained model checkpoint will be downloaded and saved into `./stargan_celeba_256/models` directory.
@@ -116,3 +124,7 @@ This work was mainly inspired by [StarGAN_v2-Tensorflow](https://github.com/taki
 
 ## Contribution
 we still need your help, as we stuck on reference guided image synthesis and computing resources(multiple gpus training), any contribution(demos, code and the docs)is welcomed 
+
+## Contributers
+habout <br/>
+ryan
